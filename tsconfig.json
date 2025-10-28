@@ -4,6 +4,7 @@
         "allowSyntheticDefaultImports": true,
         "moduleResolution": "node",
         "module": "commonjs",
-        "target": "es2021"
+        "target": "es2021",
+        "jsx": "react-jsx"
     }
 }

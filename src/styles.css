@@ -1,0 +1,113 @@
+/* Основная кнопка управления */
+.gz-profile-btn {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    padding: 12px 24px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    z-index: 9999;
+    font-size: 16px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    transition: background-color 0.2s ease-in-out;
+}
+
+.gz-profile-btn:hover {
+    background-color: #0056b3;
+}
+
+/* --- Модальное окно --- */
+.gz-modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10000;
+}
+
+.gz-modal-content {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    min-width: 400px;
+    max-width: 90%;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+    color: #333;
+}
+
+.gz-modal-content h2 {
+    margin-top: 0;
+    color: #333;
+}
+
+.gz-modal-content button {
+    padding: 8px 16px;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+    cursor: pointer;
+    margin-right: 10px;
+}
+
+.gz-modal-content button:hover {
+    background-color: #f0f0f0;
+}
+
+/* --- Список анкет --- */
+.gz-profile-list-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    border-bottom: 1px solid #eee;
+}
+
+.gz-profile-list-item:last-child {
+    border-bottom: none;
+}
+
+.gz-profile-list-item span {
+    font-size: 16px;
+}
+
+.gz-profile-list-item button {
+    background: none;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 5px;
+}
+
+/* --- Форма анкеты --- */
+.gz-profile-form {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.gz-profile-form input {
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 16px;
+}
+
+.gz-form-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.gz-form-buttons button[type="submit"] {
+    background-color: #28a745;
+    color: white;
+    border-color: #28a745;
+}

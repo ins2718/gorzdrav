@@ -1,0 +1,32 @@
+{
+    "name": "gorzdrav",
+    "description": "Помощь в записи на приём к врачу на gorzdrav.spb.ru",
+    "version": "0.1.0",
+    "manifest_version": 3,
+    "icons": {
+        "16": "gorzdrav.ico",
+        "48": "gorzdrav.ico",
+        "128": "gorzdrav.ico"
+    },
+    "action": {
+        "default_icon": "gorzdrav.ico"
+    },
+    "permissions": [
+        "tabs",
+        "scripting",
+        "storage"
+    ],
+    "host_permissions": [
+        "https://gorzdrav.spb.ru/*"
+    ],
+    "content_scripts": [
+        {
+            "matches": [
+                "https://gorzdrav.spb.ru/*"
+            ],
+            "js": [
+                "content-script.js"
+            ]
+        }
+    ]
+}
