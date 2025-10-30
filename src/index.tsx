@@ -19,6 +19,33 @@ function getLpuFromUrl(): string | null {
 
 let root: ReactDOM.Root | null = null;
 
+function renderAppointmentButtons() {
+    try {
+        const hash = decodeURIComponent(window.location.hash.substring(1));
+        if (!hash.includes("speciality")) return;
+
+        const doctorElements = document.querySelectorAll(".service-doctor[data-doctor-id]");
+
+        doctorElements.forEach(doctorElement => {
+            const buttonsContainer = doctorElement.querySelector(".service-doctor-top__buttons");
+            if (buttonsContainer && !buttonsContainer.querySelector(".gz-appointment-btn")) {
+                const appointmentButton = document.createElement("button");
+                appointmentButton.innerText = "Запись";
+                appointmentButton.className = "gz-appointment-btn";
+                const doctorId = (doctorElement as HTMLElement).dataset.doctorId;
+
+                appointmentButton.onclick = () => {
+                    const event = new CustomEvent("openDateTimeModal", { detail: { doctorId } });
+                    document.dispatchEvent(event);
+                };
+                buttonsContainer.appendChild(appointmentButton);
+            }
+        });
+    } catch (e) {
+        console.error("Gorzdrav helper: Error rendering appointment buttons", e);
+    }
+}
+
 function renderApp() {
     const rootElement = document.getElementById("gorzdrav-helper-root");
     if (!rootElement) {
@@ -40,8 +67,13 @@ function renderApp() {
     );
 }
 
-export function initReactApp() {
+function mainRender() {
     renderApp();
-    window.addEventListener("hashchange", renderApp, false);
-    new MutationObserver(renderApp).observe(document.body, { childList: true, subtree: true });
+    renderAppointmentButtons();
+}
+
+export function initReactApp() {
+    mainRender();
+    window.addEventListener("hashchange", mainRender, false);
+    new MutationObserver(mainRender).observe(document.body, { childList: true, subtree: true });
 }

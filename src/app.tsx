@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Modal } from "./modal";
 import { ProfileForm } from "./profile-form";
+import { DateTimeForm } from "./date-time-form";
+import { AppointmentSearch } from "./appointment-search";
 
 const PROFILES_KEY = "gorzdrav_profiles";
 
@@ -51,17 +53,105 @@ async function validateProfileWithApi(profileData: Omit<Profile, "id">): Promise
     }
 }
 
+async function getAvailableAppointments(lpuId: string, doctorId: string): Promise<AppointmentSlot[]> {
+    const url = `https://gorzdrav.spb.ru/_api/api/v2/schedule/lpu/${lpuId}/doctor/${doctorId}/appointments`;
+    try {
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`Сетевая ошибка: ${response.statusText}`);
+        }
+        const data = await response.json();
+
+        if (data.success && Array.isArray(data.result)) {
+            return data.result;
+        } else {
+            console.error("Gorzdrav helper: Ошибка API при получении талонов", data.message);
+            return [];
+        }
+    } catch (error) {
+        console.error("Gorzdrav helper: Ошибка при получении талонов", error);
+        return [];
+    }
+}
+
+async function bookAppointment(
+    lpuId: string,
+    profile: Profile,
+    appointment: AppointmentSlot
+): Promise<{ success: boolean; message?: string }> {
+    const url = "https://gorzdrav.spb.ru/_api/api/v2/appointment/create";
+    const toApiDate = (isoDate: string) => `${isoDate}T00:00:00`;
+
+    const payload = {
+        lpuId: lpuId,
+        patientId: profile.id,
+        appointmentId: appointment.id,
+        recipientEmail: profile.email,
+        patientLastName: profile.lastName,
+        patientFirstName: profile.firstName,
+        patientMiddleName: profile.middleName,
+        patientBirthdate: toApiDate(profile.birthDate),
+        room: appointment.room,
+        num: appointment.number.toString(),
+        address: appointment.address,
+        visitDate: appointment.visitStart,
+        esiaId: null,
+        referralId: null,
+        ipmpiCardId: null,
+    };
+
+    try {
+        const response = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+        });
+        const data = await response.json();
+        return { success: data.success, message: data.message || (data.success ? "Талон успешно забронирован!" : "Неизвестная ошибка бронирования.") };
+    } catch (error) {
+        console.error("Gorzdrav helper: Ошибка при бронировании талона", error);
+        return { success: false, message: "Сетевая ошибка при бронировании." };
+    }
+}
 
 export const App: React.FC<{ lpuId: string }> = ({ lpuId }) => {
     const [profiles, setProfiles] = useState<Profile[]>([]);
     const [isListModalOpen, setListModalOpen] = useState(false);
     const [isFormModalOpen, setFormModalOpen] = useState(false);
     const [editingProfile, setEditingProfile] = useState<Profile | null>(null);
+    const [isDateTimeModalOpen, setDateTimeModalOpen] = useState(false);
+    const [selectedDoctorId, setSelectedDoctorId] = useState<string | null>(null);
+    const [isSearching, setIsSearching] = useState(false);
+    const [foundAppointment, setFoundAppointment] = useState<AppointmentSlot | null>(null);
+    const [searchStatusMessage, setSearchStatusMessage] = useState("");
+    const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+
+    const searchIntervalRef = React.useRef<NodeJS.Timeout | null>(null);
 
     const loadProfiles = useCallback(async () => {
         const allProfiles = await getProfiles();
         setProfiles(allProfiles.filter(p => p.lpu === lpuId));
     }, [lpuId]);
+
+    const handleOpenDateTimeModal = useCallback((event: Event) => {
+        const customEvent = event as CustomEvent;
+        const { doctorId } = customEvent.detail;
+        if (doctorId) {
+            setSelectedDoctorId(doctorId);
+            setIsSearching(false);
+            setFoundAppointment(null);
+            if (profiles.length > 0) setSelectedProfileId(profiles[0].id);
+            setDateTimeModalOpen(true);
+        }
+    }, []);
+
+    useEffect(() => {
+        document.addEventListener("openDateTimeModal", handleOpenDateTimeModal);
+        return () => {
+            document.removeEventListener("openDateTimeModal", handleOpenDateTimeModal);
+        };
+    }, [handleOpenDateTimeModal]);
+
 
     useEffect(() => {
         loadProfiles();
@@ -117,6 +207,63 @@ export const App: React.FC<{ lpuId: string }> = ({ lpuId }) => {
         loadProfiles();
     };
 
+    const stopSearch = useCallback(() => {
+        if (searchIntervalRef.current) {
+            clearInterval(searchIntervalRef.current);
+            searchIntervalRef.current = null;
+        }
+        setIsSearching(false);
+    }, []);
+
+    const handleCancelSearch = () => {
+        stopSearch();
+        setDateTimeModalOpen(false);
+    };
+
+    const handleDateTimeConfirm = (data: { date: string; time: string; profileId: string }) => {
+        if (!selectedDoctorId || !data.profileId) return;
+
+        const selectedProfile = profiles.find(p => p.id === data.profileId);
+        if (!selectedProfile) {
+            alert("Выбранный профиль не найден.");
+            return;
+        }
+        setSelectedProfileId(data.profileId);
+
+        setIsSearching(true);
+        setSearchStatusMessage("Идет поиск доступных талонов...");
+
+        const requestedDateTime = new Date(`${data.date}T${data.time}`);
+
+        const search = async () => {
+            console.log("Выполняется поиск талонов...");
+            const appointments = await getAvailableAppointments(lpuId, selectedDoctorId!);
+            const suitableAppointment = appointments
+                .filter(slot => new Date(slot.visitStart) >= requestedDateTime)
+                .sort((a, b) => new Date(a.visitStart).getTime() - new Date(b.visitStart).getTime())[0];
+            
+            if (suitableAppointment) {
+                stopSearch();
+                setFoundAppointment(suitableAppointment);
+                setSearchStatusMessage(`Найден талон! Бронируем на ${selectedProfile.lastName}...`);
+                const bookingResult = await bookAppointment(lpuId, selectedProfile, suitableAppointment);
+                setSearchStatusMessage(bookingResult.message || "Статус бронирования неизвестен.");
+            } else {
+                setSearchStatusMessage(`Свободных талонов нет. Следующая попытка через 30 секунд...`);
+            }
+        };
+
+        search(); // Первый запуск
+        searchIntervalRef.current = setInterval(search, 30000); // Повторять каждые 30 секунд
+    };
+
+    useEffect(() => {
+        // Очистка интервала при размонтировании компонента
+        return () => {
+            stopSearch();
+        };
+    }, [stopSearch]);
+
     return (
         <>
             <button
@@ -155,6 +302,23 @@ export const App: React.FC<{ lpuId: string }> = ({ lpuId }) => {
                     onSave={handleSave}
                     onCancel={() => setFormModalOpen(false)}
                 />
+            </Modal>
+
+            <Modal id="gz-datetime-modal" show={isDateTimeModalOpen} onClose={handleCancelSearch}>
+                {isSearching ? (
+                    <AppointmentSearch
+                        statusMessage={searchStatusMessage}
+                        foundAppointment={foundAppointment}
+                        onCancel={handleCancelSearch}
+                    />
+                ) : (
+                    <DateTimeForm
+                        onConfirm={handleDateTimeConfirm}
+                        profiles={profiles}
+                        selectedProfileId={selectedProfileId}
+                        onCancel={handleCancelSearch}
+                    />
+                )}
             </Modal>
         </>
     );

@@ -8,3 +8,12 @@ type Profile = {
     email: string;
     phone: string;
 };
+
+interface AppointmentSlot {
+    id: string;
+    visitStart: string;
+    visitEnd: string;
+    address: string;
+    number: number;
+    room: string;
+}
