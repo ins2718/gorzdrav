@@ -53,6 +53,27 @@ async function validateProfileWithApi(profileData: Omit<Profile, "id">): Promise
     }
 }
 
+async function getDoctorsBySpeciality(lpuId: string, specialityId: string): Promise<any[]> {
+    const url = `https://gorzdrav.spb.ru/_api/api/v2/schedule/lpu/${lpuId}/speciality/${specialityId}/doctors`;
+    try {
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`Сетевая ошибка: ${response.statusText}`);
+        }
+        const data = await response.json();
+
+        if (data.success && Array.isArray(data.result)) {
+            return data.result;
+        } else {
+            console.error("Gorzdrav helper: Ошибка API при получении врачей", data.message);
+            return [];
+        }
+    } catch (error) {
+        console.error("Gorzdrav helper: Ошибка при получении врачей", error);
+        return [];
+    }
+}
+
 async function getAvailableAppointments(lpuId: string, doctorId: string): Promise<AppointmentSlot[]> {
     const url = `https://gorzdrav.spb.ru/_api/api/v2/schedule/lpu/${lpuId}/doctor/${doctorId}/appointments`;
     try {
@@ -125,6 +146,7 @@ export const App: React.FC<{ lpuId: string }> = ({ lpuId }) => {
     const [foundAppointment, setFoundAppointment] = useState<AppointmentSlot | null>(null);
     const [searchStatusMessage, setSearchStatusMessage] = useState("");
     const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+    const [selectedSpecialityId, setSelectedSpecialityId] = useState<string | null>(null);
 
     const searchIntervalRef = React.useRef<NodeJS.Timeout | null>(null);
 
@@ -135,9 +157,17 @@ export const App: React.FC<{ lpuId: string }> = ({ lpuId }) => {
 
     const handleOpenDateTimeModal = useCallback((event: Event) => {
         const customEvent = event as CustomEvent;
-        const { doctorId } = customEvent.detail;
+        const { doctorId, specialityId } = customEvent.detail;
         if (doctorId) {
             setSelectedDoctorId(doctorId);
+            setSelectedSpecialityId(null);
+            setIsSearching(false);
+            setFoundAppointment(null);
+            if (profiles.length > 0) setSelectedProfileId(profiles[0].id);
+            setDateTimeModalOpen(true);
+        } else if (specialityId) {
+            setSelectedDoctorId(null);
+            setSelectedSpecialityId(specialityId);
             setIsSearching(false);
             setFoundAppointment(null);
             if (profiles.length > 0) setSelectedProfileId(profiles[0].id);
@@ -221,7 +251,7 @@ export const App: React.FC<{ lpuId: string }> = ({ lpuId }) => {
     };
 
     const handleDateTimeConfirm = (data: { date: string; time: string; profileId: string }) => {
-        if (!selectedDoctorId || !data.profileId) return;
+        if ((!selectedDoctorId && !selectedSpecialityId) || !data.profileId) return;
 
         const selectedProfile = profiles.find(p => p.id === data.profileId);
         if (!selectedProfile) {
@@ -235,13 +265,31 @@ export const App: React.FC<{ lpuId: string }> = ({ lpuId }) => {
 
         const requestedDateTime = new Date(`${data.date}T${data.time}`);
 
+        const intervalInSec = 10;
+
         const search = async () => {
             console.log("Выполняется поиск талонов...");
-            const appointments = await getAvailableAppointments(lpuId, selectedDoctorId!);
-            const suitableAppointment = appointments
-                .filter(slot => new Date(slot.visitStart) >= requestedDateTime)
-                .sort((a, b) => new Date(a.visitStart).getTime() - new Date(b.visitStart).getTime())[0];
-            
+            let suitableAppointment: AppointmentSlot | undefined;
+
+            if (selectedDoctorId) {
+                const appointments = await getAvailableAppointments(lpuId, selectedDoctorId);
+                suitableAppointment = appointments
+                    .filter(slot => new Date(slot.visitStart) >= requestedDateTime)
+                    .sort((a, b) => new Date(a.visitStart).getTime() - new Date(b.visitStart).getTime())[0];
+            } else if (selectedSpecialityId) {
+                const doctors = await getDoctorsBySpeciality(lpuId, selectedSpecialityId);
+                for (const doctor of doctors) {
+                    const appointments = await getAvailableAppointments(lpuId, doctor.id);
+                    const found = appointments
+                        .filter(slot => new Date(slot.visitStart) >= requestedDateTime)
+                        .sort((a, b) => new Date(a.visitStart).getTime() - new Date(b.visitStart).getTime())[0];
+                    if (found) {
+                        suitableAppointment = found;
+                        break;
+                    }
+                }
+            }
+
             if (suitableAppointment) {
                 stopSearch();
                 setFoundAppointment(suitableAppointment);
@@ -249,12 +297,12 @@ export const App: React.FC<{ lpuId: string }> = ({ lpuId }) => {
                 const bookingResult = await bookAppointment(lpuId, selectedProfile, suitableAppointment);
                 setSearchStatusMessage(bookingResult.message || "Статус бронирования неизвестен.");
             } else {
-                setSearchStatusMessage(`Свободных талонов нет. Следующая попытка через 30 секунд...`);
+                setSearchStatusMessage(`Свободных талонов нет. Следующая попытка через ${intervalInSec} секунд...`);
             }
         };
 
         search(); // Первый запуск
-        searchIntervalRef.current = setInterval(search, 30000); // Повторять каждые 30 секунд
+        searchIntervalRef.current = setInterval(search, intervalInSec * 1000); // Повторять каждые 30 секунд
     };
 
     useEffect(() => {

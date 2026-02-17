@@ -22,25 +22,43 @@ let root: ReactDOM.Root | null = null;
 function renderAppointmentButtons() {
     try {
         const hash = decodeURIComponent(window.location.hash.substring(1));
-        if (!hash.includes("speciality")) return;
+        if (hash.includes("speciality")) {
+            const doctorElements = document.querySelectorAll(".service-doctor[data-doctor-id]");
 
-        const doctorElements = document.querySelectorAll(".service-doctor[data-doctor-id]");
+            doctorElements.forEach(doctorElement => {
+                const buttonsContainer = doctorElement.querySelector(".service-doctor-top__buttons");
+                if (buttonsContainer && !buttonsContainer.querySelector(".gz-appointment-btn")) {
+                    const appointmentButton = document.createElement("button");
+                    appointmentButton.innerText = "Запись";
+                    appointmentButton.className = "gz-appointment-btn";
+                    const doctorId = (doctorElement as HTMLElement).dataset.doctorId;
 
-        doctorElements.forEach(doctorElement => {
-            const buttonsContainer = doctorElement.querySelector(".service-doctor-top__buttons");
-            if (buttonsContainer && !buttonsContainer.querySelector(".gz-appointment-btn")) {
-                const appointmentButton = document.createElement("button");
-                appointmentButton.innerText = "Запись";
-                appointmentButton.className = "gz-appointment-btn";
-                const doctorId = (doctorElement as HTMLElement).dataset.doctorId;
+                    appointmentButton.onclick = () => {
+                        const event = new CustomEvent("openDateTimeModal", { detail: { doctorId } });
+                        document.dispatchEvent(event);
+                    };
+                    buttonsContainer.appendChild(appointmentButton);
+                }
+            });
+        } else if (hash.includes("lpu")) {
+            const specialityElements = document.querySelectorAll(".service-speciality[data-speciality-id]");
 
-                appointmentButton.onclick = () => {
-                    const event = new CustomEvent("openDateTimeModal", { detail: { doctorId } });
-                    document.dispatchEvent(event);
-                };
-                buttonsContainer.appendChild(appointmentButton);
-            }
-        });
+            specialityElements.forEach(specialityElement => {
+                console.log(specialityElement);
+                if (!specialityElement.querySelector(".gz-appointment-btn")) {
+                    const appointmentButton = document.createElement("button");
+                    appointmentButton.innerText = "Запись";
+                    appointmentButton.className = "gz-appointment-btn";
+                    const specialityId = (specialityElement as HTMLElement).dataset.specialityId;
+
+                    appointmentButton.onclick = () => {
+                        const event = new CustomEvent("openDateTimeModal", { detail: { specialityId } });
+                        document.dispatchEvent(event);
+                    };
+                    specialityElement.appendChild(appointmentButton);
+                }
+            });
+        }
     } catch (e) {
         console.error("Gorzdrav helper: Error rendering appointment buttons", e);
     }
