@@ -14,6 +14,6 @@ interface AppointmentSlot {
     visitStart: string;
     visitEnd: string;
     address: string;
-    number: number;
+    number: number | null;
     room: string;
 }

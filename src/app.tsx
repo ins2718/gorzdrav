@@ -113,7 +113,7 @@ async function bookAppointment(
         patientMiddleName: profile.middleName,
         patientBirthdate: toApiDate(profile.birthDate),
         room: appointment.room,
-        num: appointment.number.toString(),
+        num: appointment.number === null ? null : appointment.number.toString(),
         address: appointment.address,
         visitDate: appointment.visitStart,
         esiaId: null,
@@ -128,7 +128,11 @@ async function bookAppointment(
             body: JSON.stringify(payload),
         });
         const data = await response.json();
-        return { success: data.success, message: data.message || (data.success ? "Талон успешно забронирован!" : "Неизвестная ошибка бронирования.") };
+        if (data.success) {
+            const successMessage = `Талон для ${profile.lastName} ${profile.firstName} на ${appointment.visitStart} в кабинет ${appointment.room} успешно забронирован!`;
+            return { success: true, message: data.message || successMessage };
+        }
+        return { success: false, message: data.message || "Неизвестная ошибка бронирования." };
     } catch (error) {
         console.error("Gorzdrav helper: Ошибка при бронировании талона", error);
         return { success: false, message: "Сетевая ошибка при бронировании." };
@@ -247,6 +251,7 @@ export const App: React.FC<{ lpuId: string }> = ({ lpuId }) => {
 
     const handleCancelSearch = () => {
         stopSearch();
+        setSearchStatusMessage("");
         setDateTimeModalOpen(false);
     };
 
@@ -353,7 +358,7 @@ export const App: React.FC<{ lpuId: string }> = ({ lpuId }) => {
             </Modal>
 
             <Modal id="gz-datetime-modal" show={isDateTimeModalOpen} onClose={handleCancelSearch}>
-                {isSearching ? (
+                {isSearching || searchStatusMessage ? (
                     <AppointmentSearch
                         statusMessage={searchStatusMessage}
                         foundAppointment={foundAppointment}
